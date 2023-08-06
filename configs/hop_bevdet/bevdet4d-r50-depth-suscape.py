@@ -201,8 +201,8 @@ test_pipeline = [
     dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
+        load_dim=4,
+        use_dim=4,
         file_client_args=file_client_args),
     dict(
         type='MultiScaleFlipAug3D',
@@ -283,6 +283,6 @@ checkpoint_config = dict(interval=3)
 
 # inherited from nus-3d.py
 evaluation = dict(
-    interval=24,  
+    interval=1,  
     pipeline=test_pipeline)  
 
