@@ -97,7 +97,13 @@ class SuscapeDataset(Custom3DDataset):
         self.with_future_pred = with_future_pred
         self.load_adj_bbox = load_adj_bbox
 
-   
+    def __len__(self):
+        """Return the length of data infos.
+
+        Returns:
+            int: Length of data infos.
+        """
+        return len(self.data_infos['data_list'])
     def get_data_info(self, index):
         """Get data info according to the given index.
 
