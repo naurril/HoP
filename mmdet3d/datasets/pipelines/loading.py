@@ -1136,6 +1136,10 @@ class PrepareImageInputs(object):
         Image.open() default is RGB files
         Validated 
         '''
+
+        img = Image.open(filename)
+        return img
+
         if self.file_client_args is None or self.file_client_args['backend'] == 'disk':
             load_fun = mmcv.load
 

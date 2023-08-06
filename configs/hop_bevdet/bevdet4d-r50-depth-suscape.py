@@ -1,24 +1,24 @@
 # Copyright (c) Phigent Robotics. All rights reserved.
 
-_base_ = ['../_base_/datasets/nus-3d.py', '../_base_/default_runtime.py']
+_base_ = ['../_base_/datasets/suscape-3d.py', '../_base_/default_runtime.py']
 # Global
 # If point cloud range is changed, the models should also change their point
 # cloud range accordingly
 point_cloud_range = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 # For nuScenes we usually do 10-class detection
 class_names = [
-    'car', 'truck', 'construction_vehicle', 'bus', 'trailer', 'barrier',
-    'motorcycle', 'bicycle', 'pedestrian', 'traffic_cone'
-]
+    'Car', 'Pedestrian', 'ScooterRider', 'Truck', 'Scooter',
+                'Bicycle', 'Van', 'Bus', 'BicycleRider', 
+                'Trimotorcycle']
 
 data_config = {
     'cams': [
-        'CAM_FRONT_LEFT', 'CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_BACK_LEFT',
-        'CAM_BACK', 'CAM_BACK_RIGHT'
+        'front', 'front_left', 'front_right', 'rear',
+        'rear_left', 'rear_right'
     ],
     'Ncams': 6,
     'input_size': (256, 704),
-    'src_size': (900, 1600),
+    'src_size': (1536, 2048),
 
     # Augmentation
     'resize': (-0.06, 0.11),
@@ -151,8 +151,8 @@ model = dict(
             ])))
 
 # Data
-dataset_type = 'NuScenesDataset'
-data_root = 'data/nuscenes/'
+dataset_type = 'SuscapeDataset'
+data_root = 'data/suscape/'
 file_client_args = dict(backend='disk')
 
 bda_aug_conf = dict(
@@ -167,7 +167,8 @@ train_pipeline = [
         is_train=True,
         data_config=data_config,
         sequential=True,
-        file_client_args=file_client_args),
+        file_client_args=file_client_args,
+        ego_cam='front'),
     dict(
         type='LoadAnnotationsBEVDepth',
         bda_aug_conf=bda_aug_conf,
@@ -175,8 +176,8 @@ train_pipeline = [
     dict(
         type='LoadPointsFromFile',
         coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
+        load_dim=4,
+        use_dim=4,
         file_client_args=file_client_args),
     dict(type='PointToMultiViewDepth', downsample=1, grid_config=grid_config),
     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
@@ -188,7 +189,10 @@ train_pipeline = [
 ]
 
 test_pipeline = [
-    dict(type='PrepareImageInputs', data_config=data_config, sequential=True, file_client_args=file_client_args),
+    dict(type='PrepareImageInputs', 
+    data_config=data_config, sequential=True, 
+    file_client_args=file_client_args,
+    ego_cam='front'),
     dict(
         type='LoadAnnotationsBEVDepth',
         bda_aug_conf=bda_aug_conf,
@@ -231,18 +235,18 @@ share_data_config = dict(
 
 test_data_config = dict(
     pipeline=test_pipeline,
-    ann_file=data_root + 'bevdetv2-nuscenes_infos_val.pkl')
+    ann_file=data_root + 'bevdetv2-suscape_infos_val.pkl')
 
 data = dict(
-    samples_per_gpu=8,
+    samples_per_gpu=1,
     workers_per_gpu=4,
     train=dict(
         data_root=data_root,
-        ann_file=data_root + 'bevdetv2-nuscenes_infos_train.pkl',
+        ann_file=data_root + 'bevdetv2-suscape_infos_train.pkl',
         pipeline=train_pipeline,
         classes=class_names,
         test_mode=False,
-        use_valid_flag=True,
+        # use_valid_flag=True,
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
         # and box_type_3d='Depth' in sunrgbd and scannet dataset.
         box_type_3d='LiDAR'),
@@ -279,6 +283,6 @@ checkpoint_config = dict(interval=3)
 
 # inherited from nus-3d.py
 evaluation = dict(
-    interval=1,  
+    interval=24,  
     pipeline=test_pipeline)  
 

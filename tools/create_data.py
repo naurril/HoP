@@ -6,6 +6,7 @@ from tools.data_converter import indoor_converter as indoor
 from tools.data_converter import kitti_converter as kitti
 from tools.data_converter import lyft_converter as lyft_converter
 from tools.data_converter import nuscenes_converter as nuscenes_converter
+from tools.data_converter import suscape_converter as suscape_converter
 from tools.data_converter.create_gt_database import (
     GTDatabaseCreater, create_groundtruth_database)
 
@@ -107,6 +108,19 @@ def lyft_data_prep(root_path, info_prefix, version, max_sweeps=10):
     lyft_converter.create_lyft_infos(
         root_path, info_prefix, version=version, max_sweeps=max_sweeps)
 
+def suscape_data_prep(root_path, info_prefix, version, out_path):
+    """Prepare data related to Suscape dataset.
+
+    Related data consists of '.pkl' files recording basic infos.
+    Args:
+        root_path (str): Path of dataset root.
+        info_prefix (str): The prefix of info filenames.
+        version (str): Dataset version.
+        max_sweeps (int, optional): Number of input consecutive frames.
+            Defaults to 10.
+    """
+    suscape_converter.create_suscape_infos(
+        root_path, info_prefix, out_path, version=version, max_sweeps=1)
 
 def scannet_data_prep(root_path, info_prefix, out_dir, workers):
     """Prepare the info file for scannet dataset.

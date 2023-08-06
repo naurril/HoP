@@ -38,6 +38,19 @@ We use [MMDetection3D V1.0.0rc4](https://github.com/open-mmlab/mmdetection3d/tre
 
 You can take the following steps to install packages above: 
 
+```
+ //tested conda env, on cuda 11.7
+
+ conda create -n hop python=3.9
+ conda activate hop
+ conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
+ pip install mmcv-full==1.6
+ pip install mmdet==2.24.0
+ pip install networkx
+ pip install timm
+ pip install einops
+```
+
 1. Build MMCV following [official instructions](https://github.com/open-mmlab/mmcv/tree/v1.5.2#installation). 
 
 2. Install MMDetection by 
@@ -45,6 +58,7 @@ You can take the following steps to install packages above:
    ```bash
    pip install mmdet==2.24.0
    ```
+
 
 3. Copy HoP repo and install MMDetection3D.
 
