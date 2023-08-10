@@ -276,6 +276,7 @@ class Custom3DDataset(Dataset):
 
     def format_results(self,
                        outputs,
+                       score_threshold=0.0,
                        pklfile_prefix=None,
                        submission_prefix=None):
         """Format the results to pkl file.
