@@ -355,11 +355,20 @@ class SuscapeDataset(Custom3DDataset):
                 the json filepaths, tmp_dir is the temporal directory created
                 for saving json files when jsonfile_prefix is not specified.
         """
+    
+
+        assert isinstance(outputs, list), 'results must be a list'
+        assert len(outputs) == len(self), (
+            'The length of results is not equal to the dataset len: {} != {}'.
+            format(len(outputs), len(self)))
+
         if pklfile_prefix is None:
             tmp_dir = tempfile.TemporaryDirectory()
             pklfile_prefix = osp.join(tmp_dir.name, 'results')
         else:
             tmp_dir = None
+        
+
 
         if not isinstance(outputs[0], dict):
             result_files = self.bbox2result_kitti2d(outputs, self.CLASSES,
@@ -471,97 +480,65 @@ class SuscapeDataset(Custom3DDataset):
             mmcv.mkdir_or_exist(submission_prefix)
 
         det_annos = []
-        print('\nConverting prediction to KITTI format')
-        for idx, pred_dicts in enumerate(
-                mmcv.track_iter_progress(net_outputs)):
-            annos = []
+        print('\nConverting prediction to suscape format')
+        for idx, pred_dicts in enumerate(mmcv.track_iter_progress(net_outputs)):
+
             info = self.data_infos['data_list'][idx]
+            annos = {
+                'scene': info['scene_token'],
+                'frame': info['frame_token'],
+                'objs': []
+                }
+            
             #sample_idx = info['image']['image_idx']
             #image_shape = info['image']['image_shape'][:2]
 
-            box_dict = self.convert_valid_bboxes(pred_dicts["boxes_3d"],pred_dicts["scores_3d"], pred_dicts["labels_3d"])
-            if len(box_dict['scores']) > 0:
-                # box_2d_preds = box_dict['bbox']
-                box_preds = box_dict['box3d_camera']
-                scores = box_dict['scores']
-                box_preds_lidar = box_dict['box3d_lidar']
-                label_preds = box_dict['label_preds']
+            # box_dict = self.convert_valid_bboxes(pred_dicts["boxes_3d"],pred_dicts["scores_3d"], pred_dicts["labels_3d"])
+            if len(pred_dicts['scores_3d']) != 0:
+                for tensor, score, label in zip(pred_dicts['boxes_3d'].tensor.numpy(), pred_dicts['scores_3d'].numpy(), pred_dicts['labels_3d'].numpy()):
+                    obj = {
+                        'psr':{
+                            'position': {
+                                'x': tensor[0],
+                                'y': tensor[1],
+                                'z': tensor[2] + tensor[5]/2
+                            },
+                            'scale': {
+                                'x': tensor[3],
+                                'y': tensor[4],
+                                'z': tensor[5]
+                            },
+                            'rotation': {
+                                'x': 0,
+                                'y': 0,
+                                'z': tensor[6]
+                            }
+                        },
+                        'score': score,
+                        'obj_type': class_names[label],
+                        'obj_id': '',
+                        'obj_attr': str(score)
+                    }
 
-                anno = {
-                    'name': [],
-                    'truncated': [],
-                    'occluded': [],
-                    'alpha': [],
-                    'bbox': [],
-                    'dimensions': [],
-                    'location': [],
-                    'rotation_y': [],
-                    'score': []
-                }
+                    annos['objs'].append(obj)
 
-                for box, box_lidar, score, label in zip(
-                        box_preds, box_preds_lidar, scores,
-                        label_preds):
-                    #bbox[2:] = np.minimum(bbox[2:], image_shape[::-1])
-                    #bbox[:2] = np.maximum(bbox[:2], [0, 0])
-                    
-                    anno['name'].append(class_names[int(label)])
-                    anno['truncated'].append(0.0)
-                    anno['occluded'].append(0)
-                    anno['alpha'].append(
-                        -np.arctan2(-box_lidar[1], box_lidar[0]) + box[6])
-                    anno['bbox'].append(np.zeros(4))
-                    anno['dimensions'].append(box[3:6])
-                    anno['location'].append(box[:3])
-                    anno['rotation_y'].append(box[6])
-                    anno['score'].append(score)
-
-                anno = {k: np.stack(v) for k, v in anno.items()}
-                annos.append(anno)
-
-                if submission_prefix is not None:
-                    curr_file = f'{submission_prefix}/{sample_idx:07d}.txt'
-                    with open(curr_file, 'w') as f:
-                        bbox = anno['bbox']
-                        loc = anno['location']
-                        dims = anno['dimensions']  # lhw -> hwl
-
-                        for idx in range(len(bbox)):
-                            print(
-                                '{} -1 -1 {:.4f} {:.4f} {:.4f} {:.4f} '
-                                '{:.4f} {:.4f} {:.4f} '
-                                '{:.4f} {:.4f} {:.4f} {:.4f} {:.4f} {:.4f}'.
-                                format(anno['name'][idx], anno['alpha'][idx],
-                                       bbox[idx][0], bbox[idx][1],
-                                       bbox[idx][2], bbox[idx][3],
-                                       dims[idx][1], dims[idx][2],
-                                       dims[idx][0], loc[idx][0], loc[idx][1],
-                                       loc[idx][2], anno['rotation_y'][idx],
-                                       anno['score'][idx]),
-                                file=f)
-            else:
-                annos.append({
-                    'name': np.array([]),
-                    'truncated': np.array([]),
-                    'occluded': np.array([]),
-                    'alpha': np.array([]),
-                    'bbox': np.zeros([0, 4]),
-                    'dimensions': np.zeros([0, 3]),
-                    'location': np.zeros([0, 3]),
-                    'rotation_y': np.array([]),
-                    'score': np.array([]),
-                })
-            # annos[-1]['sample_idx'] = np.array(
-            #     [sample_idx] * len(annos[-1]['score']), dtype=np.int64)
-
-            det_annos += annos
+            det_annos.append(annos)
 
         if pklfile_prefix is not None:
-            if not pklfile_prefix.endswith(('.pkl', '.pickle')):
-                out = f'{pklfile_prefix}.pkl'
-            mmcv.dump(det_annos, out)
-            print(f'Result is saved to {out}.')
+            json_file = pklfile_prefix + '.json'
+            print(f'\nConverting prediction to {json_file}')
+            mmcv.dump(det_annos, json_file)
+            print(f'Result is saved to {json_file}.')
+        if submission_prefix is not None:
+            # submission_file = submission_prefix + '.json'
+            # print(f'\nConverting prediction to {submission_file}')
+            # mmcv.dump(det_annos, submission_file)
+            # print(f'Result is saved to {submission_file}.')
 
+            for d in det_annos:
+                # os.makedirs(submission_prefix + '/' + d['scene'], exist_ok=True)
+                path = submission_prefix + '/' + d['scene'] + '/label/' + d['frame'] + '.json'
+                mmcv.dump(d, path)
         return det_annos
 
     def convert_valid_bboxes(self, boxes, scores, labels):

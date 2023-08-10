@@ -123,10 +123,13 @@ def create_suscape_infos(root_path,
     else:
         print(f'train sample: {len(train_infos)}, \
                 val sample: {len(val_infos)}')
+        
         data = dict(data_list=train_infos, metainfo=metainfo)
         train_info_name = f'{info_prefix}_infos_train'
         info_path = osp.join(out_path, f'{train_info_name}.pkl')
         mmengine.dump(data, info_path)
+
+
         data = dict(data_list=val_infos, metainfo=metainfo)
         val_info_name = f'{info_prefix}_infos_val'
         info_val_path = osp.join(out_path, f'{val_info_name}.pkl')
@@ -227,6 +230,7 @@ def _read_scene(suscape, out_path, scene_name, test, overwrite_lidar_file=False)
                 [METAINFO['classes'].index(n) for n in info['gt_names']],
             ]
             info['scene_token'] = scene_name # useful to find adjecent frames
+            info['frame_token'] = frame # useful to save results for test or submission
             infos.append(info)
     return infos
 
