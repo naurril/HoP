@@ -336,6 +336,7 @@ class SuscapeDataset(Custom3DDataset):
 
     def format_results(self,
                        outputs,
+                       score_threshold=0.0,
                        pklfile_prefix=None,
                        submission_prefix=None):
         """Format the results to pkl file.
@@ -371,7 +372,7 @@ class SuscapeDataset(Custom3DDataset):
 
 
         if not isinstance(outputs[0], dict):
-            result_files = self.bbox2result_kitti2d(outputs, self.CLASSES,
+            result_files = self.bbox2result_kitti2d(outputs, self.CLASSES,score_threshold,
                                                     pklfile_prefix,
                                                     submission_prefix)
         elif 'pts_bbox' in outputs[0] or 'img_bbox' in outputs[0]:
@@ -385,15 +386,15 @@ class SuscapeDataset(Custom3DDataset):
                     submission_prefix_ = None
                 if 'img' in name:
                     result_files = self.bbox2result_kitti2d(
-                        results_, self.CLASSES, pklfile_prefix_,
+                        results_, self.CLASSES, score_threshold,pklfile_prefix_,
                         submission_prefix_)
                 else:
                     result_files_ = self.bbox2result_kitti(
-                        results_, self.CLASSES, pklfile_prefix_,
+                        results_, self.CLASSES, score_threshold,pklfile_prefix_,
                         submission_prefix_)
                 result_files[name] = result_files_
         else:
-            result_files = self.bbox2result_kitti(outputs, self.CLASSES,
+            result_files = self.bbox2result_kitti(outputs, self.CLASSES,score_threshold,
                                                   pklfile_prefix,
                                                   submission_prefix)
         return result_files, tmp_dir
@@ -460,6 +461,7 @@ class SuscapeDataset(Custom3DDataset):
     def bbox2result_kitti(self,
                           net_outputs,
                           class_names,
+                          score_threshold,
                           pklfile_prefix=None,
                           submission_prefix=None):
         """Convert results to kitti format for evaluation and test submission.
@@ -496,6 +498,10 @@ class SuscapeDataset(Custom3DDataset):
             # box_dict = self.convert_valid_bboxes(pred_dicts["boxes_3d"],pred_dicts["scores_3d"], pred_dicts["labels_3d"])
             if len(pred_dicts['scores_3d']) != 0:
                 for tensor, score, label in zip(pred_dicts['boxes_3d'].tensor.numpy(), pred_dicts['scores_3d'].numpy(), pred_dicts['labels_3d'].numpy()):
+                    
+                    if score < score_threshold:
+                        continue
+                    
                     obj = {
                         'psr':{
                             'position': {
