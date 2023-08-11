@@ -17,6 +17,7 @@ from .custom_3d import Custom3DDataset
 from .pipelines import Compose
 
 
+
 @DATASETS.register_module()
 class SuscapeDataset(Custom3DDataset):
     r"""SUSCape Dataset.
@@ -264,6 +265,7 @@ class SuscapeDataset(Custom3DDataset):
                  results,
                  metric='kitti',
                  logger=None,
+                 score_threshold=0.0,
                  pklfile_prefix=None,
                  submission_prefix=None,
                  show=False,
@@ -292,47 +294,32 @@ class SuscapeDataset(Custom3DDataset):
         Returns:
             dict[str: float]: results of each evaluation metric
         """
-        assert ('waymo' in metric or 'kitti' in metric), \
-            f'invalid metric {metric}'
-        if 'kitti' in metric:
-            result_files, tmp_dir = self.format_results(
-                results,
-                pklfile_prefix,
-                submission_prefix)
-            from mmdet3d.core.evaluation import kitti_eval
-            
-            gt_annos = self.format_gt(self.data_infos['data_list'])
 
-            if isinstance(result_files, dict):
-                ap_dict = dict()
-                for name, result_files_ in result_files.items():
-                    eval_types = ['bev', '3d']
-                    ap_result_str, ap_dict_ = kitti_eval(
-                        gt_annos,
-                        result_files_,
-                        self.CLASSES,
-                        eval_types=eval_types)
-                    for ap_type, ap in ap_dict_.items():
-                        ap_dict[f'{name}/{ap_type}'] = float(
-                            '{:.4f}'.format(ap))
+        result_files, tmp_dir = self.format_results(
+            results,
+            score_threshold,
+            pklfile_prefix,
+            submission_prefix)
+        
+        from suscape.eval.detection_3d import evaluate as suscape_evaluate
+        import json
+        
+        gt_annos = self.format_gt_to_suscape(self.data_infos['data_list'])
+    
+        with open(result_files['pts_bbox'], 'r') as f:
+            dt_res = json.load(f)
 
-                    print_log(
-                        f'Results of {name}:\n' + ap_result_str, logger=logger)
-
-            else:
-                ap_result_str, ap_dict = kitti_eval(
-                    gt_annos,
-                    result_files,
-                    self.CLASSES,
-                    eval_types=['bev', '3d'])
-                print_log('\n' + ap_result_str, logger=logger)
+        metrics, metrics_string = suscape_evaluate(dt_res, gt_annos, self.CLASSES)
+        print_log(metrics, logger=logger)
+        print_log(metrics_string, logger=logger)
+        
         
         if tmp_dir is not None:
             tmp_dir.cleanup()
 
         if show or out_dir:
             self.show(results, out_dir, show=show, pipeline=pipeline)
-        return ap_dict
+        return metrics
 
     def format_results(self,
                        outputs,
@@ -385,7 +372,7 @@ class SuscapeDataset(Custom3DDataset):
                 else:
                     submission_prefix_ = None
                 if 'img' in name:
-                    result_files = self.bbox2result_kitti2d(
+                    result_files_ = self.bbox2result_kitti2d(
                         results_, self.CLASSES, score_threshold,pklfile_prefix_,
                         submission_prefix_)
                 else:
@@ -399,7 +386,7 @@ class SuscapeDataset(Custom3DDataset):
                                                   submission_prefix)
         return result_files, tmp_dir
 
-    def format_gt(self,
+    def format_gt_to_kitti(self,
                        gt,
                        pklfile_prefix=None,
                        submission_prefix=None):
@@ -455,13 +442,54 @@ class SuscapeDataset(Custom3DDataset):
 
 
         return gt_annos
+    def format_gt_to_suscape(self, gt):
+        """Format suscape gt to suscape format.      
+        """
+        print('\nConverting ground truth to suscape format')
+
+      
+        gt_annos = []
         
+        
+        for  frame in gt:
+            ann = {
+                'objs':  [],
+                'scene': frame['scene_token'],
+                'frame': frame['frame_token'],
+            }
+            for i,name in enumerate(frame['gt_names']):
+                obj = {
+                    'psr':{
+                        'position':{
+                            'x': frame['gt_boxes'][i][0],
+                            'y': frame['gt_boxes'][i][1],
+                            'z': frame['gt_boxes'][i][2],
+                        },
+                        'scale':{
+                            'x': frame['gt_boxes'][i][3],
+                            'y': frame['gt_boxes'][i][4],
+                            'z': frame['gt_boxes'][i][5],
+                        },
+                        'rotation':{
+                            'x': 0,
+                            'y': 0,
+                            'z': frame['gt_boxes'][i][6],
+                        },
+                    },
+                    'obj_type': name,
+                    
+                }
+
+                ann['objs'].append(obj)
+            gt_annos.append(ann)
+
+        return gt_annos
     
 
     def bbox2result_kitti(self,
                           net_outputs,
                           class_names,
-                          score_threshold,
+                          score_threshold=0,
                           pklfile_prefix=None,
                           submission_prefix=None):
         """Convert results to kitti format for evaluation and test submission.
@@ -545,7 +573,7 @@ class SuscapeDataset(Custom3DDataset):
                 # os.makedirs(submission_prefix + '/' + d['scene'], exist_ok=True)
                 path = submission_prefix + '/' + d['scene'] + '/label/' + d['frame'] + '.json'
                 mmcv.dump(d, path)
-        return det_annos
+        return json_file
 
     def convert_valid_bboxes(self, boxes, scores, labels):
         """Convert the boxes into valid format.
